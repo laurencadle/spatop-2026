@@ -1,0 +1,462 @@
+# %%
+import h5py
+import matplotlib.pyplot as plt
+import os
+import numpy as np
+import vector as vec
+import awkward as ak
+from scipy.stats import norm
+
+# %%
+file_path = "/Users/laurencadle/Downloads/ttbar_testing_uci_notOurs.h5"
+#gathering the indices of where the mask is true for frt1 and frt2
+with h5py.File(file_path, 'r') as f:
+    frt1_mask = f['t1/mask'][:]
+    frt2_mask = f['t2/mask'][:]
+
+# %%
+#define the b/q1/q2 values for each top
+with h5py.File(file_path, 'r') as f:
+    frt1_b = f['t1/b'][:]
+    frt1_q1 = f['t1/q1'][:]
+    frt1_q2 = f['t1/q2'][:]
+    
+    frt2_b = f['t2/b'][:]
+    frt2_q1 = f['t2/q1'][:]
+    frt2_q2 = f['t2/q2'][:]
+
+# %%
+has_2_tops = frt1_mask & frt2_mask
+jet_index_mtrx = np.vstack([frt1_b, frt1_q1, frt1_q2, frt2_b, frt2_q1, frt2_q2]).T
+jim_sel = jet_index_mtrx[has_2_tops]
+print(jim_sel)
+
+# %%
+_, unique_counts = np.unique(jim_sel, return_counts = True, axis =1)
+all_6_jets_unique = unique_counts ==6
+print(all_6_jets_unique)
+
+# %% [markdown]
+# ** PICK UP WORK HERE
+
+# %%
+print("has_2_tops shape:", has_2_tops.shape)
+print("all_6_jets_unique shape:", np.shape(all_6_jets_unique))
+print("dtype:", type(all_6_jets_unique))
+
+
+# %%
+n_unique_jets = np.array([len(np.unique(row)) for row in jim_sel])
+all_6_jets_unique_sel = n_unique_jets == 6
+all_6_jets_unique = np.zeros_like(has_2_tops, dtype=bool)
+all_6_jets_unique[has_2_tops] = all_6_jets_unique_sel
+final_event_preselection = has_2_tops & all_6_jets_unique
+
+# %%
+final_event_preselection = has_2_tops & all_6_jets_unique
+print(final_event_preselection)
+print(np.sum(final_event_preselection))
+
+# %%
+#define the b/q1/q2 values for each top
+with h5py.File(file_path, 'r') as f:
+    frt1_b = f['t1/b'][:][final_event_preselection]
+    frt1_q1 = f['t1/q1'][:][final_event_preselection]
+    frt1_q2 = f['t1/q2'][:][final_event_preselection]
+    
+    frt2_b = f['t2/b'][:][final_event_preselection]
+    frt2_q1 = f['t2/q1'][:][final_event_preselection]
+    frt2_q2 = f['t2/q2'][:][final_event_preselection]
+    
+#making the 4momentum with the masses for top1
+with h5py.File(file_path, 'r') as f:
+    eta = (f['source/eta'][:][final_event_preselection])
+    phi = (f['source/phi'][:][final_event_preselection])
+    pt = (f['source/pt'][:][final_event_preselection])
+    mass = (f['source/mass'][:][final_event_preselection])
+    
+with h5py.File(file_path, 'r') as f:
+    frt1_mask = f['t1/mask'][:]
+    # frt1_indices = np.where(frt1_mask)
+    # print("frt1 indices that have true values: ", frt1_indices)
+
+    frt2_mask = f['t2/mask'][:]
+    # frt2_indices = np.where(frt2_mask)
+    # print("frt2 indices that have true values: ", frt2_indices)
+
+frt1_mask = frt1_mask[final_event_preselection]
+frt2_mask = frt2_mask[final_event_preselection]
+
+frt1_eta = eta[frt1_mask]
+frt1_phi = phi[frt1_mask]
+frt1_pt = pt[frt1_mask]
+frt1_mass = mass[frt1_mask]
+
+jets = vec.arr({
+    "eta": frt1_eta,
+    "phi": frt1_phi, 
+    "pt": frt1_pt,
+    "mass": frt1_mass
+    })
+#add masks
+
+#use on test dataset!
+frt1_b = (frt1_b[frt1_mask])
+frt1_q1 = (frt1_q1[frt1_mask])
+frt1_q2 = (frt1_q2[frt1_mask])
+
+local_idx = ak.local_index(frt1_pt, axis=1)
+#print(ak.type(local_idx))
+#print(ak.sum(ak.is_none(frt1_b)))
+# local_idx == frt1_b
+
+# frt1_b_jets = ak.firsts(jets[local_idx == frt1_b])
+#print(frt1_b)
+# frt1_b_jets = jets[:, frt1_b]
+frt1_bjets = jets[np.arange(len(jets)), frt1_b]
+frt1_q1_jets = jets[np.arange(len(jets)), frt1_q1]
+frt1_q2_jets = jets[np.arange(len(jets)), frt1_q2]
+
+jets_sel = jets
+frt1_b_sel = frt1_b
+frt1_q1_sel = frt1_q1
+frt1_q2_sel = frt1_q2
+
+jets_sel[np.arange(len(jets_sel)), frt1_b_sel]
+jets_sel[np.arange(len(jets_sel)), frt1_q1_sel]
+jets_sel[np.arange(len(jets_sel)), frt1_q2_sel]
+
+#masses!
+mbqq = (frt1_bjets + frt1_q1_jets + frt1_q2_jets).mass
+mqq = (frt1_q1_jets + frt1_q2_jets).mass
+
+print("mbqq: ", mbqq)
+print("mqq: ", mqq)
+
+#making the 4momentum with the masses for top2
+with h5py.File(file_path, 'r') as f:
+    eta = (f['source/eta'][:][final_event_preselection])
+    phi = (f['source/phi'][:][final_event_preselection])
+    pt = (f['source/pt'][:][final_event_preselection])
+    mass = (f['source/mass'][:][final_event_preselection])
+    
+frt2_eta = eta[frt2_mask]
+frt2_phi = phi[frt2_mask]
+frt2_pt = pt[frt2_mask]
+frt2_mass = mass[frt2_mask]
+
+jets = vec.arr({
+    "eta": frt2_eta,
+    "phi": frt2_phi, 
+    "pt": frt2_pt,
+    "mass": frt2_mass
+    })
+
+#add masks
+frt2_b = (frt2_b[frt2_mask])
+frt2_q1 = (frt2_q1[frt2_mask])
+frt2_q2 = (frt2_q2[frt2_mask])
+
+local_idx = ak.local_index(frt2_pt, axis=1)
+
+frt2_bjets = jets[np.arange(len(jets)), frt2_b]
+frt2_q1_jets = jets[np.arange(len(jets)), frt2_q1]
+frt2_q2_jets = jets[np.arange(len(jets)), frt2_q2]
+
+jets_sel2 = jets
+frt2_b_sel = frt2_b
+frt2_q1_sel = frt2_q1
+frt2_q2_sel = frt2_q2
+
+jets_sel2[np.arange(len(jets_sel2)), frt2_b_sel]
+jets_sel2[np.arange(len(jets_sel2)), frt2_q1_sel]
+jets_sel2[np.arange(len(jets_sel2)), frt2_q2_sel]
+
+#masses!
+mbqq2 = (frt2_bjets + frt2_q1_jets + frt2_q2_jets).mass
+mqq2 = (frt2_q1_jets + frt2_q2_jets).mass
+
+print("mbqq2: ", mbqq2)
+print("mqq2: ", mqq2)
+
+# %%
+bin_edges = np.arange(0, 1000, 120)
+
+# %% [markdown]
+# ~ 300 bins for a 5% error
+# bins = events / (1/fractional error)^2
+
+# %%
+#mqq top 1
+mqq_np = ak.to_numpy(mqq)
+mqq_np = mqq_np[mqq_np > 0]
+
+mqq_mean = np.mean(mqq_np)
+mqq_median = np.median(mqq_np)
+mqq_std = np.std(mqq_np)
+
+mu, sigma = norm.fit(mqq_np)
+
+plt.figure(figsize=(10, 6))
+counts, bin_edges, _ = plt.hist(mqq_np, color='lightseagreen', bins=300, linewidth=1.8, label=f"mqq  (mean={mqq_mean:.1f}, std={mqq_std:.1f}, median={mqq_median:.1f})")
+plt.axvline(mqq_median, color='black', linestyle='--', linewidth=1.5, label="mqq median")
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+errors = np.sqrt(counts)
+plt.errorbar(bin_centers, counts, yerr=errors, fmt='o', markersize=2, color='black', ecolor='black', capsize=2, label='Error Bars')
+
+x = np.linspace(bin_edges[0], bin_edges[-1], 500)
+pdf = norm.pdf(x, mu, sigma)
+pdf_scaled = pdf * (len(mqq_np) * (bin_edges[1] - bin_edges[0]))
+
+plt.plot(x, pdf_scaled, linewidth=2.2, linestyle='--', color='mediumvioletred', label="Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Distribution of mqq (Top 1)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#mbqq top 1
+mbqq_np = ak.to_numpy(mbqq)
+mbqq_np = mbqq_np[mbqq_np > 0]
+
+mbqq_mean = np.mean(mbqq_np)
+mbqq_median = np.median(mbqq_np)
+mbqq_std = np.std(mbqq_np)
+
+mu, sigma = norm.fit(mbqq_np)
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+plt.figure(figsize=(10, 6))
+counts, bin_edges, _ = plt.hist(mbqq_np, color='lightseagreen', bins=300, linewidth=1.8, label=f"mbqq  (mean={mbqq_mean:.1f}, std={mbqq_std:.1f}, median={mbqq_median:.1f})")
+plt.axvline(mbqq_median, color='black', linestyle='--', linewidth=1.5, label="mbqq median")
+
+errors = np.sqrt(counts)
+plt.errorbar(bin_centers, counts, yerr=errors, fmt='o', markersize=2, color='black', ecolor='black', capsize=2, label='Error Bars')
+
+x = np.linspace(bin_edges[0], bin_edges[-1], 500)
+pdf = norm.pdf(x, mu, sigma)
+pdf_scaled = pdf * (len(mbqq_np) * (bin_edges[1] - bin_edges[0]))
+
+plt.plot(x, pdf_scaled, linewidth=2.2, linestyle='--', color='mediumvioletred', label="Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Distribution of mbqq (Top 1)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#mqq top 2
+mqq2_np = ak.to_numpy(mqq2)
+mqq2_np = mqq2_np[mqq2_np > 0]
+
+mqq2_mean = np.mean(mqq2_np)
+mqq2_median = np.median(mqq2_np)
+mqq2_std = np.std(mqq2_np)
+
+mu, sigma = norm.fit(mqq2_np)
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+plt.figure(figsize=(10, 6))
+counts, bin_edges, _ = plt.hist(mqq2_np, color='lightseagreen', bins=300, linewidth=1.8, label=f"mqq2  (mean={mqq2_mean:.1f}, std={mqq2_std:.1f}, median={mqq2_median:.1f})")
+plt.axvline(mqq2_median, color='black', linestyle='--', linewidth=1.5, label="mqq2 median")
+
+errors = np.sqrt(counts)
+plt.errorbar(bin_centers, counts, yerr=errors, fmt='o', markersize=2, color='black', ecolor='black', capsize=2, label='Error Bars')
+
+x = np.linspace(bin_edges[0], bin_edges[-1], 500)
+pdf = norm.pdf(x, mu, sigma)
+pdf_scaled = pdf * (len(mqq_np) * (bin_edges[1] - bin_edges[0]))
+
+plt.plot(x, pdf_scaled, linewidth=2.2, linestyle='--', color='mediumvioletred', label="Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Distribution of mqq2 (Top 2)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#mbqq top 2
+mbqq2_np = ak.to_numpy(mbqq2)
+mbqq2_np = mbqq2_np[mbqq2_np > 0]
+
+mbqq2_mean = np.mean(mbqq2_np)
+mbqq2_median = np.median(mbqq2_np)
+mbqq2_std = np.std(mbqq2_np)
+
+mu, sigma = norm.fit(mbqq2_np)
+bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+plt.figure(figsize=(10, 6))
+counts, bin_edges, _ = plt.hist(mbqq2_np, color='lightseagreen', bins=300, linewidth=1.8, label=f"mbqq2  (mean={mbqq2_mean:.1f}, std={mbqq2_std:.1f}, median={mbqq2_median:.1f})")
+plt.axvline(mbqq2_median, color='black', linestyle='--', linewidth=1.5, label="mbqq2 median")
+
+errors = np.sqrt(counts)
+plt.errorbar(bin_centers, counts, yerr=errors, fmt='o', markersize=2, color='black', ecolor='black', capsize=2, label='Error Bars')
+
+x = np.linspace(bin_edges[0], bin_edges[-1], 500)
+pdf = norm.pdf(x, mu, sigma)
+pdf_scaled = pdf * (len(mqq_np) * (bin_edges[1] - bin_edges[0]))
+
+plt.plot(x, pdf_scaled, linewidth=2.2, linestyle='--', color='mediumvioletred', label="Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Distribution of mbqq2 (Top 2)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#all top1
+#mqq top 1
+mqq_np = ak.to_numpy(mqq)
+mqq_np = mqq_np[mqq_np > 0]
+
+mqq_mean = np.mean(mqq_np)
+mqq_median = np.median(mqq_np)
+mqq_std = np.std(mqq_np)
+mu1, sigma1 = norm.fit(mqq_np)
+
+#mbqq top 1
+mbqq_np = ak.to_numpy(mbqq)
+mbqq_np = mbqq_np[mbqq_np > 0]
+
+mbqq_mean = np.mean(mbqq_np)
+mbqq_median = np.median(mbqq_np)
+mbqq_std = np.std(mbqq_np)
+mu2, sigma2 = norm.fit(mbqq_np)
+
+plt.figure(figsize=(10, 6))
+
+counts1, bins1, _ = plt.hist(mqq_np, bins=300, alpha=0.6, color='turquoise', linewidth=1.8, label=f"mqq (mean={mqq_mean:.1f}, std={mqq_std:.1f}, median={mqq_median:.1f})")
+counts2, bins2, _ = plt.hist(mbqq_np, bins=300, alpha=0.6, color='lightpink', linewidth=1.8, label=f"mbqq (mean={mbqq_mean:.1f}, std={mbqq_std:.1f}, median={mbqq_median:.1f})")
+
+plt.axvline(mqq_median, color='darkcyan', linestyle='--', linewidth=1.5, label="mqq median")
+plt.axvline(mbqq_median, color='crimson', linestyle='--', linewidth=1.5, label="mbqq median")
+
+xmin = min(bins1[0], bins2[0])
+xmax = max(bins1[-1], bins2[-1])
+x = np.linspace(xmin, xmax, 500)
+
+binw1 = bins1[1] - bins1[0]
+binw2 = bins2[1] - bins2[0]
+
+pdf1 = norm.pdf(x, mu1, sigma1) * len(mqq_np) * binw1
+pdf2 = norm.pdf(x, mu2, sigma2) * len(mbqq_np) * binw2
+
+plt.plot(x, pdf1, linestyle='--', color='blue', linewidth=2.2, label="mqq Gaussian fit")
+plt.plot(x, pdf2, linestyle='--', color='red', linewidth=2.2, label="mbqq Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Comparison of mqq vs mbqq (Top 1)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#all top 2
+# mqq top 2
+mqq2_np = ak.to_numpy(mqq2)
+mqq2_np = mqq2_np[mqq2_np > 0]
+
+mqq2_mean = np.mean(mqq2_np)
+mqq2_median = np.median(mqq2_np)
+mqq2_std = np.std(mqq2_np)
+mu1, sigma1 = norm.fit(mqq2_np)
+
+#mbqq top 2
+mbqq2_np = ak.to_numpy(mbqq2)
+mbqq2_np = mbqq2_np[mbqq2_np > 0]
+
+mbqq2_mean = np.mean(mbqq2_np)
+mbqq2_median = np.median(mbqq2_np)
+mbqq2_std = np.std(mbqq2_np)
+mu2, sigma2 = norm.fit(mbqq2_np)
+
+plt.figure(figsize=(10, 6))
+
+counts1, bins1, _ = plt.hist(mqq2_np, bins=300, alpha=0.6, color='turquoise', linewidth=1.8, label=f"mqq2 (mean={mqq2_mean:.1f}, std={mqq2_std:.1f}, median={mqq2_median:.1f})")
+counts2, bins2, _ = plt.hist(mbqq2_np, bins=300, alpha=0.6, color='lightpink', linewidth=1.8, label=f"mbqq2 (mean={mbqq2_mean:.1f}, std={mbqq2_std:.1f}, median={mbqq2_median:.1f})")
+
+plt.axvline(mqq2_median, color='darkcyan', linestyle='--', linewidth=1.5, label="mqq2 median")
+plt.axvline(mbqq2_median, color='crimson', linestyle='--', linewidth=1.5, label="mbqq2 median")
+
+xmin = min(bins1[0], bins2[0])
+xmax = max(bins1[-1], bins2[-1])
+
+x = np.linspace(xmin, xmax, 500)
+
+binw1 = bins1[1] - bins1[0]
+binw2 = bins2[1] - bins2[0]
+
+pdf1 = norm.pdf(x, mu1, sigma1) * len(mqq2_np) * binw1
+pdf2 = norm.pdf(x, mu2, sigma2) * len(mbqq2_np) * binw2
+
+plt.plot(x, pdf1, linestyle='--', linewidth=2.2, color='blue', label="mqq2 Gaussian fit")
+plt.plot(x, pdf2, linestyle='--', linewidth=2.2, color='red', label="mbqq2 Gaussian fit")
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Comparison of mqq2 vs mbqq2 (Top 2)")
+plt.legend()
+plt.xlim(0, 300)
+plt.show()
+
+# %%
+#full top1/top2
+
+#top1
+mqq_np  = ak.to_numpy(mqq);    mqq_np  = mqq_np[mqq_np > 0]
+mbqq_np = ak.to_numpy(mbqq);   mbqq_np = mbqq_np[mbqq_np > 0]
+
+#top2
+mqq2_np  = ak.to_numpy(mqq2);   mqq2_np  = mqq2_np[mqq2_np > 0]
+mbqq2_np = ak.to_numpy(mbqq2);  mbqq2_np = mbqq2_np[mbqq2_np > 0]
+
+
+mu_mqq,  sigma_mqq  = norm.fit(mqq_np)
+mu_mbqq, sigma_mbqq = norm.fit(mbqq_np)
+mu_mqq2,  sigma_mqq2  = norm.fit(mqq2_np)
+mu_mbqq2, sigma_mbqq2 = norm.fit(mbqq2_np)
+
+plt.figure(figsize=(10, 6))
+
+counts_base, bins, _ = plt.hist(mqq_np, bins=300, alpha=0, color='white')
+
+xmin, xmax = 0, 300
+bins = 300
+
+counts1, bins1, _ = plt.hist(mqq_np, bins=bins, range=(xmin, xmax), alpha=0.6, color='turquoise', linewidth=1.8, label=f"mqq (mean={mqq_mean:.1f}, std={mqq_std:.1f}, median={mqq_median:.1f})")
+counts2, bins2, _ = plt.hist(mbqq_np, bins=bins, range=(xmin, xmax), alpha=0.6, color='red', linewidth=1.8, label=f"mbqq (mean={mbqq_mean:.1f}, std={mbqq_std:.1f}, median={mbqq_median:.1f})")
+counts3, bins3, _ = plt.hist(mqq2_np, bins=bins, range=(xmin, xmax), alpha=0.6, color='slategrey', linewidth=1.8, label=f"mqq2 (mean={mqq2_mean:.1f}, std={mqq2_std:.1f}, median={mqq2_median:.1f})")
+counts4, bins4, _ = plt.hist(mbqq2_np, bins=bins, range=(xmin, xmax), alpha=0.6, color='orange', linewidth=1.8, label=f"mbqq2 (mean={mbqq2_mean:.1f}, std={mbqq2_std:.1f}, median={mbqq2_median:.1f})")
+
+x = np.linspace(xmin, xmax, 800)
+bin_width = (xmax - xmin) / bins
+
+plt.plot(x, norm.pdf(x, mu_mqq, sigma_mqq) * len(mqq_np) * bin_width, '--', color='darkcyan', linewidth=2.2, label="mqq Gaussian fit")
+plt.plot(x, norm.pdf(x, mu_mbqq, sigma_mbqq) * len(mbqq_np) * bin_width, '--', color='deeppink', linewidth=2.2, label="mbqq Gaussian fit")
+plt.plot(x, norm.pdf(x, mu_mqq2, sigma_mqq2) * len(mqq2_np) * bin_width, '--', color='darkslategrey', linewidth=2.2, label="mqq2 Gaussian fit")
+plt.plot(x, norm.pdf(x, mu_mbqq2, sigma_mbqq2) * len(mbqq2_np) * bin_width, '--', color='black', linewidth=2.2, label="mbqq2 Gaussian fit")
+
+plt.axvline(np.median(mqq_np), color='darkcyan', linestyle='--', linewidth=1.5)
+plt.axvline(np.median(mbqq_np), color='deeppink', linestyle='--', linewidth=1.5)
+plt.axvline(np.median(mqq2_np), color='navy', linestyle='--', linewidth=1.5)
+plt.axvline(np.median(mbqq2_np), color='red', linestyle='--', linewidth=1.5)
+
+plt.xlabel("Invariant Mass [GeV]")
+plt.ylabel("Events")
+plt.title("Comparison of mqq / mbqq (Top 1) and mqq2 / mbqq2 (Top 2)")
+plt.legend(fontsize=10)
+plt.xlim(0, 300)
+plt.ylim(0, 5000)
+plt.show()
